@@ -43,9 +43,26 @@ sources:
 
   reddit:
     enabled: true
-    subreddits: ["MachineLearning", "MLQuestions", "netsec", "PromptEngineering"]
+    subreddits:
+      [
+        "MachineLearning",
+        "MLQuestions",
+        "netsec",
+        "PromptEngineering",
+        "LLMDevs",
+        "ArtificialIntelligence",
+      ]
+    max_results_per_subreddit: 100
     include_keywords: []
-    exclude_keywords: ["hiring", "job", "weekly", "who is hiring", "project showcase", "beginner thread"]
+    exclude_keywords:
+      [
+        "hiring",
+        "job",
+        "weekly",
+        "who is hiring",
+        "project showcase",
+        "beginner thread",
+      ]
     preview_chars: 300
 
   openreview:
@@ -59,3 +76,6 @@ sources:
       - "https://aclanthology.org/events/acl-2024.atom"
       - "https://aclanthology.org/events/emnlp-2024.atom"
       - "https://aclanthology.org/events/naacl-2024.atom"
+
+email:
+  max_per_source: none # 0 / "" / "none" => unlimited

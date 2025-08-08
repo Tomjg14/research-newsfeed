@@ -1,69 +1,65 @@
-import feedparser
+# Add at top:
+import requests
 from dateutil import parser as dateparser
 from datetime import timezone
-from bs4 import BeautifulSoup
 from utils import any_keyword_match, none_keyword_match, is_recent
 
-REDDIT_RSS = "https://www.reddit.com/r/{sub}/new/.rss"
-
-def clean_html_to_text(html):
-    soup = BeautifulSoup(html or "", "html.parser")
-    for tag in soup(["script","style"]):
-        tag.decompose()
-    text = soup.get_text(separator=" ", strip=True)
-    return " ".join(text.split())
-
-def preview(text, max_chars=300):
-    if not text:
-        return ""
-    if len(text) <= max_chars:
-        return text
-    return text[:max_chars].rsplit(" ", 1)[0] + "…"
+API = "https://www.reddit.com/r/{sub}/new.json?limit={limit}"  # unauth max ~100
 
 def fetch(config, global_filters):
     subs = config.get("subreddits", [])
     lookback_days = int(global_filters.get("lookback_days", 7))
-    include_keywords = global_filters.get("include_keywords", [])
-    exclude_keywords = list(set((global_filters.get("exclude_keywords", []) or []) + (config.get("exclude_keywords", []) or [])))
-    extra_include = config.get("include_keywords", [])
-    include_keywords = list(set((include_keywords or []) + (extra_include or [])))
+    include_keywords = list(set((global_filters.get("include_keywords") or []) + (config.get("include_keywords") or [])))
+    exclude_keywords = list(set((global_filters.get("exclude_keywords") or []) + (config.get("exclude_keywords") or [])))
     preview_chars = int(config.get("preview_chars", 300))
+    per_sub_limit = int(config.get("max_results_per_subreddit", 100))
 
-    entries = []
+    headers = {"User-Agent": "AI-Research-Feed/1.0 (+your email)"}
+    out = []
+
     for s in subs:
-        url = REDDIT_RSS.format(sub=s)
-        feed = feedparser.parse(url, agent="Mozilla/5.0 (AI Research Feed)")
-        for e in feed.entries:
-            published = e.get("published", e.get("updated", ""))
-            try:
-                published_dt = dateparser.parse(published).astimezone(timezone.utc)
-            except Exception:
-                published_dt = None
+        url = API.format(sub=s, limit=min(100, per_sub_limit))
+        try:
+            r = requests.get(url, headers=headers, timeout=20)
+            r.raise_for_status()
+            data = r.json()
+        except Exception:
+            continue
 
-            title = (e.get("title", "") or "").strip()
-            raw_html = ""
-            if "content" in e and e.content:
-                raw_html = " ".join(c.get("value","") for c in e.content if isinstance(c, dict))
-            else:
-                raw_html = e.get("summary","") or ""
-            cleaned = clean_html_to_text(raw_html)
-            short = preview(cleaned, preview_chars)
+        for child in (data.get("data", {}) or {}).get("children", []):
+            d = child.get("data", {}) or {}
+            title = (d.get("title") or "").strip()
+            selftext = (d.get("selftext") or "").strip()
+            link = "https://www.reddit.com" + d.get("permalink","")
+            created_utc = d.get("created_utc")
+            published_dt = None
+            if created_utc:
+                try:
+                    from datetime import datetime, timezone
+                    published_dt = datetime.fromtimestamp(float(created_utc), tz=timezone.utc)
+                except Exception:
+                    pass
 
-            hay = f"{title}\n{cleaned}"
-            if not is_recent(published_dt, lookback_days): 
+            # lookback + keyword filters
+            hay = f"{title}\n{selftext}"
+            if not is_recent(published_dt, lookback_days):
                 continue
             if include_keywords and not any_keyword_match(hay, include_keywords):
                 continue
             if not none_keyword_match(hay, exclude_keywords):
                 continue
 
-            link = e.get("link","")
-            entries.append({
-                "id": e.get("id", link),
+            # preview
+            text = (selftext or "").replace("\r"," ").replace("\n"," ")
+            if len(text) > preview_chars:
+                text = text[:preview_chars].rsplit(" ",1)[0] + "…"
+
+            out.append({
+                "id": d.get("id", link),
                 "title": f"[r/{s}] {title}",
-                "summary": short,
-                "fulltext": cleaned,
-                "authors": [],
+                "summary": text,
+                "fulltext": selftext,
+                "authors": [{"name": d.get("author")}],
                 "published": published_dt,
                 "source": "Reddit",
                 "category": s,
@@ -71,4 +67,4 @@ def fetch(config, global_filters):
                 "pdf": "",
                 "link": link,
             })
-    return entries
+    return out
