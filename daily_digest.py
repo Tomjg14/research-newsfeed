@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 """
-Daily digest generator + Outlook/Hotmail SMTP sender.
+Daily digest generator + Resend sender.
 
 Env vars (set in GitHub Actions 'env:' with repo Secrets):
-  OUTLOOK_USER       e.g. yourname@hotmail.nl
-  OUTLOOK_PASSWORD   your Outlook/Microsoft password (or app password)
-  TO_EMAIL           recipient (defaults to OUTLOOK_USER if unset)
-  MAX_PER_SOURCE     optional, default 10  (items per source)
+  RESEND_API_KEY   required
+  TO_EMAIL         required (recipient)
+  RESEND_FROM      optional (default: 'AI Digest <onboarding@resend.dev>')
+  REPLY_TO         optional (e.g., yourname@hotmail.nl)
+  MAX_PER_SOURCE   optional (default 10) — items per source
 """
 
 from __future__ import annotations
 import os
 import sys
-import smtplib
 import datetime as dt
-from email.mime.text import MIMEText
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Any
 
+import requests
 import yaml
 
-# --- Import your existing fetchers (from the v2/v3 project) ---
+# --- Import your existing fetchers (from your repo) ---
 from sources import arxiv as src_arxiv
 from sources import openreview as src_openreview
 from sources import acl as src_acl
@@ -35,7 +35,6 @@ def load_config(path: str = "config.yaml") -> Dict[str, Any]:
 
 
 def fetch_all(cfg: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
-    """Return a dict of {source_name: [entries...]}."""
     gf = {
         "lookback_days": int(cfg.get("lookback_days", 7)),
         "include_keywords": cfg.get("include_keywords", []),
@@ -55,8 +54,8 @@ def fetch_all(cfg: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
     if (scfg.get("reddit") or {}).get("enabled", True):
         buckets["Reddit"] = src_reddit.fetch(scfg.get("reddit", {}), gf)
 
-    # Sort each source newest->oldest; entries provide 'published' or None
-    for name, items in buckets.items():
+    # sort newest first within each bucket
+    for items in buckets.values():
         items.sort(key=lambda x: x.get("published") or dt.datetime.min, reverse=True)
 
     return buckets
@@ -65,7 +64,6 @@ def fetch_all(cfg: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
 def render_html(buckets: Dict[str, List[Dict[str, Any]]], max_per_source: int = 10) -> str:
     today = dt.datetime.now().strftime("%Y-%m-%d")
     parts: List[str] = [f"<h2>AI &amp; AI Security — Daily Digest ({today})</h2>"]
-
     for name, items in buckets.items():
         if not items:
             continue
@@ -78,7 +76,6 @@ def render_html(buckets: Dict[str, List[Dict[str, Any]]], max_per_source: int = 
             summary = (it.get("summary") or "").strip()
             if len(summary) > 280:
                 summary = summary[:280].rsplit(" ", 1)[0] + "…"
-            # Escape minimal risky chars in title
             safe_title = (
                 title.replace("&", "&amp;")
                      .replace("<", "&lt;")
@@ -90,12 +87,10 @@ def render_html(buckets: Dict[str, List[Dict[str, Any]]], max_per_source: int = 
                 + "</li>"
             )
         parts.append("</ul>")
-
     return "\n".join(parts)
 
 
 def render_plaintext(buckets: Dict[str, List[Dict[str, Any]]], max_per_source: int = 10) -> str:
-    """Plain-text fallback body."""
     today = dt.datetime.now().strftime("%Y-%m-%d")
     lines: List[str] = [f"AI & AI Security — Daily Digest ({today})", ""]
     for name, items in buckets.items():
@@ -118,47 +113,41 @@ def render_plaintext(buckets: Dict[str, List[Dict[str, Any]]], max_per_source: i
 
 
 # ---------------------------
-# Email via Outlook/Hotmail SMTP
+# Send via Resend
 # ---------------------------
-def send_via_outlook_smtp(
-    html: str,
-    plain: str | None = None,
-    subject: str = "AI & AI Security — Daily Digest",
-    retry: int = 1,
-) -> None:
-    user = os.environ["OUTLOOK_USER"]          # yourname@hotmail.nl
-    pwd = os.environ["OUTLOOK_PASSWORD"]       # normal or app password
-    to_addr = os.environ.get("TO_EMAIL", user)
+def send_via_resend(html: str, plain: str | None = None) -> None:
+    api_key = os.environ["RESEND_API_KEY"]
+    to_email = os.environ["TO_EMAIL"]
+    from_email = os.environ.get("RESEND_FROM", "AI Digest <onboarding@resend.dev>")
+    reply_to = os.environ.get("REPLY_TO")  # optional
+    subject = "AI & AI Security — Daily Digest"
 
-    # Simple HTML-only message (most clients handle fine). If you want multipart/alternative,
-    # you can build it—but this keeps deps minimal.
-    msg = MIMEText(html, "html", "utf-8")
-    msg["Subject"] = subject
-    msg["From"] = user
-    msg["To"] = to_addr
+    payload = {
+        "from": from_email,
+        "to": [to_email],
+        "subject": subject,
+        "html": html,
+    }
+    if plain:
+        payload["text"] = plain
+    if reply_to:
+        payload["reply_to"] = reply_to
 
-    # Send with STARTTLS
-    last_err: Exception | None = None
-    for attempt in range(retry + 1):
-        try:
-            with smtplib.SMTP("smtp.office365.com", 587, timeout=30) as s:
-                s.ehlo()
-                s.starttls()
-                s.login(user, pwd)
-                s.sendmail(user, [to_addr], msg.as_string())
-            return
-        except Exception as e:
-            last_err = e
-            if attempt < retry:
-                continue
-            raise
+    resp = requests.post(
+        "https://api.resend.com/emails",
+        headers={"Authorization": f"Bearer {api_key}",
+                 "Content-Type": "application/json"},
+        json=payload,
+        timeout=30,
+    )
+    if resp.status_code >= 300:
+        raise RuntimeError(f"Resend error {resp.status_code}: {resp.text}")
 
 
 # ---------------------------
 # Main
 # ---------------------------
 def main() -> int:
-    # Read per-source cap from env if provided
     try:
         max_per_source = int(os.getenv("MAX_PER_SOURCE", "10"))
     except ValueError:
@@ -169,18 +158,13 @@ def main() -> int:
     html = render_html(buckets, max_per_source=max_per_source)
     plain = render_plaintext(buckets, max_per_source=max_per_source)
 
-    # If running locally without env vars, print HTML so you can eyeball it
-    missing = [k for k in ("OUTLOOK_USER", "OUTLOOK_PASSWORD") if not os.getenv(k)]
-    if missing:
-        sys.stderr.write(
-            f"[info] Missing env vars {missing}; printing HTML to stdout instead.\n"
-            f"Set OUTLOOK_USER/OUTLOOK_PASSWORD/TO_EMAIL to send via Outlook SMTP.\n"
-        )
+    # If no API key set, print HTML to stdout for local preview
+    if not os.getenv("RESEND_API_KEY"):
+        sys.stderr.write("[info] RESEND_API_KEY not set; printing HTML to stdout.\n")
         print(html)
         return 0
 
-    # Send the email
-    send_via_outlook_smtp(html=html, plain=plain, retry=1)
+    send_via_resend(html=html, plain=plain)
     return 0
 
 

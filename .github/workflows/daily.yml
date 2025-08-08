@@ -1,4 +1,4 @@
-name: Daily Digest (Outlook SMTP)
+name: Daily Digest (Resend)
 on:
   schedule:
     - cron: "0 7 * * *" # 07:00 UTC = 09:00 Europe/Amsterdam
@@ -12,8 +12,11 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
       - run: pip install -r requirements.txt
-      - env:
-          OUTLOOK_USER: ${{ secrets.OUTLOOK_USER }}
-          OUTLOOK_PASSWORD: ${{ secrets.OUTLOOK_PASSWORD }}
-          TO_EMAIL: ${{ secrets.TO_EMAIL }} # optional; defaults to OUTLOOK_USER
+      - name: Build and send digest
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          TO_EMAIL: ${{ secrets.TO_EMAIL }}
+          RESEND_FROM: ${{ secrets.RESEND_FROM }} # e.g., "AI Digest <onboarding@resend.dev>" or your verified domain
+          REPLY_TO: ${{ secrets.REPLY_TO }} # optional
+          MAX_PER_SOURCE: "10"
         run: python daily_digest.py
