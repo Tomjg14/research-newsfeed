@@ -27,6 +27,8 @@ from sources import arxiv as src_arxiv
 from sources import openreview as src_openreview
 from sources import acl as src_acl
 from sources import reddit as src_reddit
+from sources import hn as src_hn
+from sources import hackernoon as src_hackernoon
 
 
 # ---------------------------
@@ -57,6 +59,10 @@ def fetch_all(cfg: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
         buckets["ACL Anthology"] = src_acl.fetch(scfg.get("acl", {}), gf)
     if (scfg.get("reddit") or {}).get("enabled", True):
         buckets["Reddit"] = src_reddit.fetch(scfg.get("reddit", {}), gf)
+    if (scfg.get("hn") or {}).get("enabled", True):
+        buckets["Hacker News"] = src_hn.fetch(scfg.get("hn", {}), gf)
+    if (scfg.get("hackernoon") or {}).get("enabled", True):
+        buckets["Hackernoon"] = src_hackernoon.fetch(scfg.get("hackernoon", {}), gf)
 
     for items in buckets.values():
         items.sort(key=lambda x: x.get("published") or dt.datetime.min, reverse=True)

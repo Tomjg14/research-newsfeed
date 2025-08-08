@@ -12,6 +12,8 @@ from sources import arxiv as src_arxiv
 from sources import reddit as src_reddit
 from sources import openreview as src_openreview
 from sources import acl as src_acl
+from sources import hn as src_hn
+from sources import hackernoon as src_hackernoon
 
 from digest_helpers import build_digest, has_email_credentials, get_secret
 from daily_digest import load_config
@@ -81,7 +83,7 @@ with st.sidebar:
         st.markdown("---")
         st.header("Sources")
         enabled = {}
-        for key in ["arxiv", "openreview", "acl", "reddit"]:
+        for key in ["arxiv", "openreview", "acl", "reddit", "hn", "hackernoon"]:
             src_conf = sources_cfg.get(key, {})
             enabled[key] = st.checkbox(
                 f"Enable {key}",
@@ -91,9 +93,9 @@ with st.sidebar:
         st.markdown("---")
         source_choice = st.selectbox(
             "View",
-            options=["All", "arXiv", "OpenReview", "ACL Anthology", "Reddit"],
-            index=["All", "arXiv", "OpenReview", "ACL Anthology", "Reddit"].index(
-                st.session_state.source_choice
+            options=["All", "arXiv", "OpenReview", "ACL Anthology", "Reddit", "Hacker News", "Hackernoon"],
+            index=["All", "arXiv", "OpenReview", "ACL Anthology", "Reddit", "Hacker News", "Hackernoon"].index(
+                st.session_state.source_choice if st.session_state.source_choice in ["All","arXiv","OpenReview","ACL Anthology","Reddit","Hacker News","Hackernoon"] else "All"
             ),
         )
 
@@ -188,7 +190,7 @@ with st.sidebar:
 @st.cache_data(show_spinner=True)
 def fetch_all(_sources_cfg, _global_filters, _enabled, _nonce):
     results = []
-    buckets = {"arXiv": [], "OpenReview": [], "ACL Anthology": [], "Reddit": []}
+    buckets = {"arXiv": [], "OpenReview": [], "ACL Anthology": [], "Reddit": [], "Hacker News": [], "Hackernoon": []}
 
     if _enabled.get("arxiv", True):
         buckets["arXiv"] = src_arxiv.fetch(_sources_cfg.get("arxiv", {}), _global_filters)
@@ -202,6 +204,15 @@ def fetch_all(_sources_cfg, _global_filters, _enabled, _nonce):
     if _enabled.get("reddit", True):
         buckets["Reddit"] = src_reddit.fetch(_sources_cfg.get("reddit", {}), _global_filters)
         results.extend(buckets["Reddit"])
+    if _enabled.get("hn", True):
+        buckets["Hacker News"] = src_hn.fetch(_sources_cfg.get("hn", {}), _global_filters)
+        results.extend(buckets["Hacker News"])
+    if _enabled.get("hackernoon", True):
+        buckets["Hackernoon"] = src_hackernoon.fetch(_sources_cfg.get("hackernoon", {}), _global_filters)
+        results.extend(buckets["Hackernoon"])
+
+    for k, v in buckets.items():
+        print(f"[debug] {k}: {len(v)} items", flush=True)
 
     seen = set()
     deduped = []
