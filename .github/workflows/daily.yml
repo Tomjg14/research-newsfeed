@@ -1,0 +1,25 @@
+name: Daily Digest
+
+on:
+  schedule:
+    - cron: "0 7 * * *" # 07:00 UTC = 09:00 Europe/Amsterdam
+  workflow_dispatch: {} # allow manual runs
+
+permissions:
+  contents: read
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4 pinned
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c560ac # v5 pinned
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          TO_EMAIL: ${{ secrets.TO_EMAIL }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          MAX_PER_SOURCE: "10"
+        run: python daily_digest.py
