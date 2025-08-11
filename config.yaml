@@ -1,27 +1,28 @@
 # === AI Research Feed v3 configuration ===
 
 # Global filters
-lookback_days: 7
+lookback_days: 1
+lookback_hours: 24
 
 # Keywords
 include_keywords:
-  - adversarial
+  - "adversarial"
   - "prompt injection"
-  - jailbreak
-  - backdoor
-  - watermark
+  - "jailbreak"
+  - "backdoor"
+  - "watermark"
   - "model stealing"
   - "data poisoning"
-  - federated
-  - robust
-  - secure
-  - privacy
-  - alignment
-  - interpretability
+  - "federated"
+  - "robust"
+  - "secure"
+  - "privacy"
+  - "alignment"
+  - "interpretability"
 
 exclude_keywords:
-  - survey
-  - tutorial
+  - "survey"
+  - "tutorial"
 
 priority_authors:
   - "Nicolas Papernot"
@@ -39,7 +40,48 @@ sources:
   arxiv:
     enabled: true
     categories: ["cs.AI", "cs.LG", "cs.CL", "cs.CR"]
-    max_results_per_category: 100
+    max_results_per_category: 2000
+    fetch_all: false
+    max_pages_per_category: 1000
+    request_pause_seconds: 3.0
+    include_keywords:
+      [
+        "adversarial",
+        "prompt injection",
+        "jailbreak",
+        "backdoor",
+        "data poisoning",
+        "LLM",
+        "Large Language Model",
+        "ChatGPT",
+        "Gemini",
+        "DeepSeek",
+        "Agent",
+        "Agency",
+        "Large Multimodal Model",
+        "LMM",
+        "federated",
+        "secure",
+        "privacy",
+        "alignment",
+        "interpretability",
+        "uncertainty",
+        "blockchain",
+        "experts",
+        "expert",
+        "agents",
+        "mixture",
+        "judge",
+      ]
+    exclude_keywords:
+      [
+        "hiring",
+        "job",
+        "weekly",
+        "who is hiring",
+        "project showcase",
+        "beginner thread",
+      ]
 
   reddit:
     enabled: true
