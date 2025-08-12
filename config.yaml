@@ -138,3 +138,6 @@ sources:
 
 email:
   max_per_source: none # 0 / "" / "none" => unlimited
+
+ui_preview_limit: 50
+send_limit_per_source: 200
