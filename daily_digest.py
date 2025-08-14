@@ -180,7 +180,7 @@ def send_via_resend_broadcast(html: str, plain: str | None = None) -> None:
     subject = os.environ.get("SUBJECT", "AI & AI Security — Daily Digest")
 
     payload = {
-        "audienceId": audience_id,
+        "audience_id": audience_id,
         "from": from_email,
         "subject": subject,
         "html": html,
