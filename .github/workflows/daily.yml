@@ -19,4 +19,5 @@ jobs:
           RESEND_FROM: ${{ secrets.RESEND_FROM }} # e.g., "AI Digest <onboarding@resend.dev>" or your verified domain
           REPLY_TO: ${{ secrets.REPLY_TO }} # optional
           MAX_PER_SOURCE: "0"
+          RESEND_AUDIENCE_ID: ${{ secrets.RESEND_AUDIENCE_ID }}
         run: python daily_digest.py
