@@ -181,6 +181,7 @@ def send_via_resend_broadcast(html: str, plain: str | None = None) -> None:
 
     payload = {
         "audience_id": audience_id,
+        "name": subject,
         "from": from_email,
         "subject": subject,
         "html": html,
