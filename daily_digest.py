@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Daily digest generator + Resend sender (deduping included).
+Daily digest generator + Resend sender (Broadcasts-ready, deduping included).
 
 Max items per source:
 - Default: unlimited
@@ -8,10 +8,16 @@ Max items per source:
 - Or via config:     email.max_per_source (same semantics)
 
 Env vars for sending:
-  RESEND_API_KEY   required for sending (omit locally to just print HTML)
-  TO_EMAIL         required for sending (recipient)
-  RESEND_FROM      optional (default 'AI Digest <onboarding@resend.dev>')
-  REPLY_TO         optional
+  RESEND_API_KEY        required for any sending
+  RESEND_FROM           optional (default 'AI Digest <onboarding@resend.dev>')
+  REPLY_TO              optional
+  SUBJECT               optional (default 'AI & AI Security — Daily Digest')
+
+Broadcast (preferred):
+  RESEND_AUDIENCE_ID    required to send via Broadcasts (Audiences)
+
+Legacy single-recipient fallback (kept for compatibility):
+  TO_EMAIL              required if RESEND_AUDIENCE_ID is not set
 """
 
 from __future__ import annotations
@@ -151,14 +157,72 @@ def render_plaintext(buckets: Dict[str, List[Dict[str, Any]]], max_per_source: O
 
 
 # ---------------------------
-# Send via Resend
+# Send via Resend (Broadcasts preferred)
 # ---------------------------
-def send_via_resend(html: str, plain: str | None = None) -> None:
+def _resend_headers(api_key: str) -> Dict[str, str]:
+    return {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+
+def send_via_resend_broadcast(html: str, plain: str | None = None) -> None:
+    """
+    Create a Broadcast for the configured Audience and send it.
+    Docs:
+      - Create Broadcast: https://resend.com/docs/api-reference/broadcasts/create-broadcast
+      - Send Broadcast:   https://resend.com/docs/api-reference/broadcasts/send-broadcast
+    """
+    api_key = os.environ["RESEND_API_KEY"]
+    audience_id = os.environ["RESEND_AUDIENCE_ID"]
+    from_email = os.environ.get("RESEND_FROM", "AI Digest <onboarding@resend.dev>")
+    reply_to = os.environ.get("REPLY_TO")
+    subject = os.environ.get("SUBJECT", "AI & AI Security — Daily Digest")
+
+    payload = {
+        "audienceId": audience_id,
+        "from": from_email,
+        "subject": subject,
+        "html": html,
+    }
+    # If you prefer to control plaintext, include it; otherwise Resend will auto-generate.
+    if plain is not None:
+        payload["text"] = plain
+    if reply_to:
+        payload["reply_to"] = reply_to
+
+    # 1) Create broadcast
+    resp = requests.post(
+        "https://api.resend.com/broadcasts",
+        headers=_resend_headers(api_key),
+        json=payload,
+        timeout=30,
+    )
+    if resp.status_code >= 300:
+        raise RuntimeError(f"Resend Broadcast create error {resp.status_code}: {resp.text}")
+
+    broadcast_id = resp.json().get("id")
+    if not broadcast_id:
+        raise RuntimeError(f"Resend Broadcast create response missing id: {resp.text}")
+
+    # 2) Send broadcast now (use scheduledAt if you want delayed delivery)
+    send_resp = requests.post(
+        f"https://api.resend.com/broadcasts/{broadcast_id}/send",
+        headers=_resend_headers(api_key),
+        json={},  # add {"scheduledAt": "in 1 min"} if desired
+        timeout=30,
+    )
+    if send_resp.status_code >= 300:
+        raise RuntimeError(f"Resend Broadcast send error {send_resp.status_code}: {send_resp.text}")
+
+
+def send_via_resend_single(html: str, plain: str | None = None) -> None:
+    """Legacy single-recipient send (kept for compatibility)."""
     api_key = os.environ["RESEND_API_KEY"]
     to_email = os.environ["TO_EMAIL"]
     from_email = os.environ.get("RESEND_FROM", "AI Digest <onboarding@resend.dev>")
     reply_to = os.environ.get("REPLY_TO")
-    subject = "AI & AI Security — Daily Digest"
+    subject = os.environ.get("SUBJECT", "AI & AI Security — Daily Digest")
 
     payload = {
         "from": from_email,
@@ -173,15 +237,12 @@ def send_via_resend(html: str, plain: str | None = None) -> None:
 
     resp = requests.post(
         "https://api.resend.com/emails",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
+        headers=_resend_headers(api_key),
         json=payload,
         timeout=30,
     )
     if resp.status_code >= 300:
-        raise RuntimeError(f"Resend error {resp.status_code}: {resp.text}")
+        raise RuntimeError(f"Resend email error {resp.status_code}: {resp.text}")
 
 
 # ---------------------------
@@ -240,7 +301,14 @@ def main() -> int:
         print(html)
         return 0
 
-    send_via_resend(html=html, plain=plain)
+    # Prefer Broadcasts if audience is configured; else fallback to single-recipient.
+    if os.getenv("RESEND_AUDIENCE_ID"):
+        send_via_resend_broadcast(html=html, plain=plain)
+    else:
+        if not os.getenv("TO_EMAIL"):
+            raise RuntimeError("Neither RESEND_AUDIENCE_ID nor TO_EMAIL is set; nothing to send to.")
+        send_via_resend_single(html=html, plain=plain)
+
     return 0
 
 
