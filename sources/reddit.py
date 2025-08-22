@@ -1,20 +1,26 @@
-# Add at top:
 import requests
 from dateutil import parser as dateparser
 from datetime import timezone
 from utils import any_keyword_match, none_keyword_match, is_recent
 
+def _effective_keywords(config, global_filters, key):
+    # If source sets include/exclude explicitly (even []), use that; else fall back to global
+    if key in config:
+        return config.get(key) or []
+    return global_filters.get(key, []) or []
+ 
 API = "https://www.reddit.com/r/{sub}/new.json?limit={limit}"  # unauth max ~100
 
 def fetch(config, global_filters):
     subs = config.get("subreddits", [])
     lookback_days = int(global_filters.get("lookback_days", 7))
-    include_keywords = list(set((global_filters.get("include_keywords") or []) + (config.get("include_keywords") or [])))
-    exclude_keywords = list(set((global_filters.get("exclude_keywords") or []) + (config.get("exclude_keywords") or [])))
+    include_keywords = _effective_keywords(config, global_filters, "include_keywords")
+    exclude_keywords = _effective_keywords(config, global_filters, "exclude_keywords")
     preview_chars = int(config.get("preview_chars", 300))
     per_sub_limit = int(config.get("max_results_per_subreddit", 100))
 
-    headers = {"User-Agent": "AI-Research-Feed/1.0 (+your email)"}
+    # Use a specific UA; Reddit may throttle generic UAs.
+    headers = {"User-Agent": "AI-Research-Feed/1.0 (contact: youremail@example.com)"}
     out = []
 
     for s in subs:
