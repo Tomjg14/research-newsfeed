@@ -2,14 +2,23 @@ import requests
 from datetime import datetime, timezone
 from utils import any_keyword_match, none_keyword_match, is_recent
 
+def _effective_keywords(config, global_filters, key):
+    """
+    If the source sets include/exclude explicitly (even []), use that; else fall back to global.
+    This lets you do `include_keywords: []` at the source level to disable global includes.
+    """
+    if key in config:
+        return config.get(key) or []
+    return global_filters.get(key, []) or []
+
 API = "https://api.openreview.net/notes"
 
 def fetch(config, global_filters):
     venues = config.get("venues", [])
     limit = int(config.get("limit_per_venue", 75))
-    lookback_days = int(global_filters.get("lookback_days", 7))
-    include_keywords = global_filters.get("include_keywords", [])
-    exclude_keywords = global_filters.get("exclude_keywords", [])
+    lookback_days = int(config.get("lookback_days", global_filters.get("lookback_days", 7)))
+    include_keywords = _effective_keywords(config, global_filters, "include_keywords")
+    exclude_keywords = _effective_keywords(config, global_filters, "exclude_keywords")
 
     out = []
     for venue in venues:

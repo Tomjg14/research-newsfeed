@@ -111,6 +111,8 @@ sources:
     enabled: true
     venues: ["NeurIPS 2024", "ICLR 2025", "ICML 2025"]
     limit_per_venue: 75
+    include_keywords: []
+    exclude_keywords: []
 
   acl:
     enabled: true
