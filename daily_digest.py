@@ -129,9 +129,9 @@ def render_html(buckets: Dict[str, List[Dict[str, Any]]], max_per_source: Option
                 + (f"<br><small>{summary}</small>" if summary else "")
                 + "</li>"
             )
-        parts.append("</ul>")
-        parts.append(f"<h4>Unsubscribe</h4>")
-        parts.append(f"Click <a href='{{unsubscribe_url}}'>here</a> to unsubscribe.")
+    parts.append("</ul>")
+    parts.append(f"<h4>Unsubscribe</h4>")
+    parts.append(f"Click <a href='{{{RESEND_UNSUBSCRIBE_URL}}}'>here</a> to unsubscribe.")
     return "\n".join(parts)
 
 
