@@ -28,6 +28,7 @@ from typing import Dict, List, Any, Optional
 
 import requests
 import yaml
+from jinja2 import Environment, FileSystemLoader
 
 from sources import arxiv as src_arxiv
 from sources import openreview as src_openreview
@@ -106,33 +107,33 @@ def _iter_limited(items: List[Dict[str, Any]], limit: Optional[int]):
 
 def render_html(buckets: Dict[str, List[Dict[str, Any]]], max_per_source: Optional[int] = None) -> str:
     today = dt.datetime.now().strftime("%Y-%m-%d")
-    parts: List[str] = [f"<h2>AI &amp; AI Security — Daily Digest ({today})</h2>"]
+
+    # Prepare data for template: apply limits and truncate summaries
+    template_buckets = {}
     for name, items in buckets.items():
         if not items:
             continue
-        shown = len(items) if (max_per_source is None or max_per_source <= 0) else min(len(items), max_per_source)
-        parts.append(f"<h3>{name} ({shown})</h3>")
-        parts.append("<ul>")
-        for it in _iter_limited(items, max_per_source):
-            title = (it.get("title") or "").strip()
-            link = it.get("pdf") or it.get("link") or "#"
-            summary = (it.get("summary") or "").strip()
+
+        limited_items = list(_iter_limited(items, max_per_source))
+        if not limited_items:
+            continue
+
+        # Process items for display
+        for item in limited_items:
+            summary = (item.get("summary") or "").strip()
             if len(summary) > 280:
-                summary = summary[:280].rsplit(" ", 1)[0] + "…"
-            safe_title = (
-                title.replace("&", "&amp;")
-                     .replace("<", "&lt;")
-                     .replace(">", "&gt;")
-            )
-            parts.append(
-                f"<li><a href=\"{link}\">{safe_title}</a>"
-                + (f"<br><small>{summary}</small>" if summary else "")
-                + "</li>"
-            )
-    parts.append("</ul>")
-    parts.append(f"<h4>Unsubscribe</h4>")
-    parts.append("Click <a href='{{{RESEND_UNSUBSCRIBE_URL}}}'>here</a> to unsubscribe.")
-    return "\n".join(parts)
+                item["summary"] = summary[:280].rsplit(" ", 1)[0] + "…"
+            else:
+                item["summary"] = summary
+
+        template_buckets[name] = limited_items
+
+    # Setup Jinja2 environment
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    env = Environment(loader=FileSystemLoader(os.path.join(script_dir, 'templates')), autoescape=True)
+    template = env.get_template("digest_template.html")
+
+    return template.render(today=today, buckets=template_buckets)
 
 
 def render_plaintext(buckets: Dict[str, List[Dict[str, Any]]], max_per_source: Optional[int] = None) -> str:
