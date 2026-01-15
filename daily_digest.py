@@ -29,6 +29,7 @@ from typing import Dict, List, Any, Optional
 import requests
 import yaml
 from jinja2 import Environment, FileSystemLoader
+from premailer import transform
 
 from sources import arxiv as src_arxiv
 from sources import openreview as src_openreview
@@ -133,7 +134,10 @@ def render_html(buckets: Dict[str, List[Dict[str, Any]]], max_per_source: Option
     env = Environment(loader=FileSystemLoader(os.path.join(script_dir, 'templates')), autoescape=True)
     template = env.get_template("digest_template.html")
 
-    return template.render(today=today, buckets=template_buckets)
+    # Render the template, then use premailer to inline CSS for email client compatibility
+    html_with_styles = template.render(today=today, buckets=template_buckets)
+    inlined_html = transform(html_with_styles)
+    return inlined_html
 
 
 def render_plaintext(buckets: Dict[str, List[Dict[str, Any]]], max_per_source: Optional[int] = None) -> str:
