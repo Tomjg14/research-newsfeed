@@ -29,7 +29,7 @@ from typing import Dict, List, Any, Optional
 import requests
 import yaml
 from jinja2 import Environment, FileSystemLoader
-from premailer import transform
+from premailer import Premailer
 
 from sources import arxiv as src_arxiv
 from sources import openreview as src_openreview
@@ -136,7 +136,12 @@ def render_html(buckets: Dict[str, List[Dict[str, Any]]], max_per_source: Option
 
     # Render the template, then use premailer to inline CSS for email client compatibility
     html_with_styles = template.render(today=today, buckets=template_buckets)
-    inlined_html = transform(html_with_styles)
+    # Manually instantiate Premailer and set remove_unsupported_css to False.
+    # This is more compatible with older versions of the library that don't
+    # accept this argument in the constructor or the top-level transform function.
+    premailer = Premailer(html_with_styles)
+    premailer.remove_unsupported_css = False
+    inlined_html = premailer.transform()
     return inlined_html
 
 
@@ -306,7 +311,10 @@ def main() -> int:
 
     if not os.getenv("RESEND_API_KEY"):
         sys.stderr.write("[info] RESEND_API_KEY not set; printing HTML to stdout.\n")
-        print(html)
+        # On Windows, the default console encoding (e.g., cp1252) can't handle
+        # all Unicode characters from papers. We explicitly encode to UTF-8
+        # and write bytes to stdout to prevent UnicodeEncodeError.
+        sys.stdout.buffer.write(html.encode("utf-8"))
         return 0
 
     # Prefer Broadcasts if audience is configured; else fallback to single-recipient.

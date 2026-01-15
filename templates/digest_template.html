@@ -29,9 +29,8 @@
         font-display: swap;
       }
       body {
-        font-family: "Supply", -apple-system, BlinkMacSystemFont, "Segoe UI",
-          Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji",
-          "Segoe UI Emoji", "Segoe UI Symbol";
+        font-family: "Supply", "Courier New", "Lucida Console", Monaco,
+          monospace;
         line-height: 1.6;
         color: #333;
         background-color: #f4f4f4;
@@ -46,17 +45,18 @@
         border-radius: 4px;
         border: 1px solid #dee2e6;
       }
-      h2 {
-        font-family: "Ppneuebit", "Supply", -apple-system, BlinkMacSystemFont,
-          "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      h1 {
+        font-family: "Ppneuebit", "Supply", "Courier New", "Lucida Console",
+          Monaco, monospace;
         color: #333;
         border-bottom: 1px solid #dee2e6;
         padding-bottom: 10px;
         margin-top: 0;
+        text-align: center;
       }
-      h3 {
-        font-family: "Ppneuebit", "Supply", -apple-system, BlinkMacSystemFont,
-          "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      h2 {
+        font-family: "Ppneuebit", "Supply", "Courier New", "Lucida Console",
+          Monaco, monospace;
         color: #333;
         margin-top: 25px;
         padding-bottom: 10px;
@@ -77,7 +77,7 @@
         padding-bottom: 5px;
       }
       a {
-        color: #007bff;
+        color: #000;
         text-decoration: none;
         font-weight: bold;
       }
@@ -100,7 +100,7 @@
   </head>
   <body>
     <div class="container">
-      <h2>AI &amp; AI Security — Daily Digest ({{ today }})</h2>
+      <h1>AI &amp; AI Security — Daily Digest ({{ today }})</h1>
       <div class="unsubscribe">
         <p>
           Click <a href="{{ '{{RESEND_UNSUBSCRIBE_URL}}' }}">here</a> to
@@ -108,7 +108,7 @@
         </p>
       </div>
       {% for name, items in buckets.items() %} {% if items %}
-      <h3>{{ name }} ({{ items|length }})</h3>
+      <h2>{{ name }} ({{ items|length }})</h2>
       <ul>
         {% for item in items %}
         <li>
